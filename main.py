@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import datetime as dt
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+from bcrypt import checkpw, gensalt, hashpw
 from decouple import config 
 
 SECRET_KEY = str(config('SECRET_KEY'))
@@ -17,7 +17,7 @@ db = {
         "username": "mike",
         "full_name": "Mike Jacks",
         "email": "mikej@email.com",
-        "hashed_password": "$2b$12$SXHTH6IoHrn85sWZz8oHT.K8IVf7Y1YnQRaHQ7tGdiyKALqaRbfre",
+        "hashed_password": "$2b$12$tYGSXsJYf5OzpMSLT86Cfu.CG4rViLfJhtzDjVANZsw2safhJg/mS",
         "disabled": False
     }
 }
@@ -42,16 +42,19 @@ class UserResponses(BaseModel):
     item_id: int
     owner: User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 app = FastAPI()
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_password(plain_password: str, hashed_password: str):
+    password_byte_encode = plain_password.encode('utf-8')
+    return checkpw(password_byte_encode, hashed_password.encode('utf-8'))
 
-def get_password_hash(password):
-    return pwd_context.hash(password)
+def get_password_hash(password: str):
+    password_byte_encode = password.encode('utf-8')
+    salt = gensalt()
+    hashed_password = hashpw(password_byte_encode, salt).decode('utf-8')
+    return hashed_password
 
 def get_user(db, username: str):
     if username in db:
@@ -71,7 +74,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     if expires_delta:
         expire = datetime.now(dt.UTC) + expires_delta
     else:
-        expire = datetime.now(dt.UTC) + timedelta(minutes=15)
+        expire = datetime.now(dt.UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(claims=to_encode, key=SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -117,4 +120,3 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
 @app.get("/users/me/items", response_model=list[UserResponses])
 async def read_own_items(current_user: User = Depends(get_current_active_user)):
     return [{"item_id": 1, "owner":current_user}]
-

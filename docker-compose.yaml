@@ -1,6 +1,6 @@
 version: "3.8"
 services:
-  web:
+  fastapi_backend:
     build: .
     ports:
       - "80:80"
